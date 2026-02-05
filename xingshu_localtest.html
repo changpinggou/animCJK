@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>自定义汉字轮廓渲染</title>
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; padding-top: 50px; background: #f0f2f5; }
+        #target-container { display: flex; flex-wrap: wrap; gap: 20px; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .char-item { border: 1px solid #eee; padding: 10px; border-radius: 4px; text-align: center; }
+        .char-label { margin-top: 10px; color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <h2>自定义 TTF 轮廓数据渲染预览</h2>
+    <div id="target-container">加载中...</div>
+
+    <script>
+        // 解析每行一个 JSON 的自定义格式
+        async function loadCustomData() {
+            const response = await fetch('./graphics_custom.txt');
+            const text = await response.text();
+            return text.trim().split('\n').map(line => JSON.parse(line));
+        }
+
+        async function render() {
+            const container = document.getElementById('target-container');
+            const dataList = await loadCustomData();
+            container.innerHTML = '';
+
+            dataList.forEach(item => {
+                const charWrapper = document.createElement('div');
+                charWrapper.className = 'char-item';
+                
+                const targetId = `target-${item.character}`;
+                const targetDiv = document.createElement('div');
+                targetDiv.id = targetId;
+                
+                const label = document.createElement('div');
+                label.className = 'char-label';
+                label.innerText = `字符: ${item.character}`;
+
+                charWrapper.appendChild(targetDiv);
+                charWrapper.appendChild(label);
+                container.appendChild(charWrapper);
+
+                // 初始化 Hanzi Writer
+                HanziWriter.create(targetId, item.character, {
+                    width: 200,
+                    height: 200,
+                    padding: 5,
+                    renderer: 'svg', // 必须使用 SVG 渲染以支持轮廓路径
+                    showOutline: true,
+                    strokeColor: '#2c3e50',
+                    outlineColor: '#eee',
+                    
+                    // 关键：跳过中线依赖的配置
+                    showCharacter: true, 
+                    
+                    charDataLoader: (char, onComplete) => {
+                        // 直接提供该字符的对应数据
+                        onComplete(item);
+                    }
+                });
+            });
+        }
+
+        render();
+    </script>
+</body>
+</html>

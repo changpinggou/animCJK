@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>手写增噪版汉字渲染预览</title>
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3.5/dist/hanzi-writer.min.js"></script>
+    <style>
+        body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: #f4f4f4; padding: 40px; }
+        .controls { margin-bottom: 30px; text-align: center; }
+        input { padding: 10px; width: 300px; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 20px; background: #2c3e50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        
+        #sentence-container { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 15px; 
+            justify-content: center; 
+            background: white; 
+            padding: 40px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        /* 核心样式：强制细线条与滤镜挂载 */
+        .char-box { border: 1px solid #f0f0f0; background: #fafafa; }
+        .char-box svg {
+            filter: url(#handwritten-filter) !important;
+            transform: rotate(-0.5deg) skewX(1deg);
+        }
+        /* 强制覆盖笔画粗细 */
+        .char-box svg path {
+            stroke-width: 20px !important; 
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+    </style>
+</head>
+<body>
+
+    <svg xmlns="http://www.w3.org/2000/svg" style="position: absolute; width: 0; height: 0;">
+        <defs>
+            <filter id="handwritten-filter" x="-20%" y="-20%" width="140%" height="140%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="31" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G" />
+                <feComponentTransfer>
+                    <feFuncA type="table" tableValues="0 0.9 1"/>
+                </feComponentTransfer>
+            </filter>
+        </defs>
+    </svg>
+
+    <div class="controls">
+        <input type="text" id="input-text" value="科技改变生活" placeholder="输入要书写的汉字...">
+        <button onclick="startAnimation()">开始书写</button>
+    </div>
+
+    <div id="sentence-container">
+        </div>
+
+    <script>
+        let handwrittenDb = null;
+
+        // 1. 加载本地处理好的数据库
+        async function loadDb() {
+            const url = './graphicsZhHans_handwritten.txt'; // 确保路径正确
+            console.log("正在加载数据库...");
+            try {
+                const response = await fetch(url);
+                const text = await response.text();
+                handwrittenDb = new Map();
+                text.split('\n').forEach(line => {
+                    if (line.trim()) {
+                        const data = JSON.parse(line);
+                        handwrittenDb.set(data.character, data);
+                    }
+                });
+                console.log(`数据库加载完成，共 ${handwrittenDb.size} 个字符`);
+            } catch (e) {
+                alert("加载数据库失败，请检查路径或是否启动了本地服务器");
+            }
+        }
+
+        // 2. 执行整句动画逻辑
+        async function startAnimation() {
+            if (!handwrittenDb) {
+                await loadDb();
+            }
+
+            const text = document.getElementById('input-text').value;
+            const container = document.getElementById('sentence-container');
+            container.innerHTML = ''; // 清空之前的内容
+
+            for (const char of text) {
+                // 动态创建容器
+                const charId = 'char-' + Math.random().toString(36).substr(2, 9);
+                const div = document.createElement('div');
+                div.id = charId;
+                div.className = 'char-box';
+                container.appendChild(div);
+
+                // 创建 Hanzi Writer 实例
+                const writer = HanziWriter.create(charId, char, {
+                    width: 150,
+                    height: 150,
+                    padding: 10,
+                    strokeColor: '#2c3e50',
+                    showOutline: false,
+                    strokeAnimationSpeed: 4,
+                    delayBetweenStrokes: 20,
+                    renderer: 'svg',
+                    // 使用本地数据库中的数据
+                    charDataLoader: (c, onComplete) => {
+                        // console.log(使用本地数据库中的数据...");
+                        const data = handwrittenDb.get(c);
+                        console.log(`使用本地数据库中的数据 ${c}: ${data} `);
+                        if (data) {
+                            if (!data.medians || data.medians.length === 0) {
+                                data.medians = data.strokes.map(() => [[0, 0]]);
+                            }
+                            onComplete(data);
+                        }else {
+                            console.log(`找不到则降级使用官方数据`);
+                            fetch(`https://cdn.jsdelivr.net/npm/hanzi-writer-data@2.0/${c}.json`)
+                                  .then(r => r.json()).then(onComplete); // 找不到则降级使用官方数据
+                        }
+                    }
+                });
+
+                // 播放动画并等待结束
+                await writer.animateCharacter();
+            }
+        }
+
+        // 页面加载后自动预热数据库
+        window.onload = loadDb;
+    </script>
+</body>
+</html>

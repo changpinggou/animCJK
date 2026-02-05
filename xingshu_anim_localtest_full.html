@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>禹卫行书 - 动态加载与书写演示</title>
+    <style>
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 50px; }
+        .canvas-container { display: flex; flex-wrap: wrap; gap: 30px; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        .char-box { width: 200px; height: 200px; border: 1px solid #eee; position: relative; overflow: hidden; }
+        
+        .handwritten-path {
+            fill: #2c3e50;
+            filter: url(#handwritten-filter);
+            transform-origin: center;
+            transform: scaleY(-1);
+        }
+
+        .controls { margin-bottom: 30px; text-align: center; }
+        .status { margin-top: 10px; font-size: 14px; color: #666; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #2c3e50; color: white; border: none; border-radius: 5px; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+
+        @keyframes drawStroke {
+            from { stroke-dashoffset: 10000; }
+            to { stroke-dashoffset: 0; }
+        }
+
+        .animating-stroke {
+            fill: none;
+            stroke: white; /* 遮罩颜色必须为白，代表显示底层内容 */
+            stroke-width: 1000; 
+            stroke-dasharray: 10000;
+            stroke-dashoffset: 10000;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>禹卫行书 - 外部数据动态加载</h1>
+
+    <div class="controls">
+        <button id="play-btn" onclick="playAll()" disabled>正在加载数据...</button>
+        <div id="status" class="status">准备读取 graphics_custom.txt...</div>
+    </div>
+
+    <svg width="0" height="0" style="position:absolute;">
+        <defs>
+            <filter id="handwritten-filter">
+                <feTurbulence type="fractalNoise" baseFrequency="0.04" numOctaves="3" result="noise"/>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+        </defs>
+    </svg>
+
+    <div class="canvas-container" id="render-target"></div>
+
+    <script>
+        let handwrittenDb = [];
+
+        /**
+         * 加载并解析 graphics_custom.txt
+         */
+        async function loadData() {
+            const statusEl = document.getElementById('status');
+            const btn = document.getElementById('play-btn');
+            const url = './graphics_custom.txt'; // 确保路径正确
+
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`无法读取文件: ${response.status}`);
+                
+                const text = await response.text();
+                const lines = text.trim().split('\n');
+                
+                handwrittenDb = lines.map((line, idx) => {
+                    try {
+                        const data = JSON.parse(line);
+                        // TTF 导出的 strokes 通常是数组，取第一项即可
+                        return {
+                            char: data.character,
+                            path: Array.isArray(data.strokes) ? data.strokes[0] : data.strokes
+                        };
+                    } catch (e) {
+                        console.error(`第 ${idx + 1} 行解析失败:`, e);
+                        return null;
+                    }
+                }).filter(item => item !== null);
+
+                statusEl.innerText = `成功加载 ${handwrittenDb.length} 个字符数据`;
+                btn.innerText = "播放动画";
+                btn.disabled = false;
+                
+                // 自动播放
+                playAll();
+
+            } catch (err) {
+                statusEl.innerText = `错误: ${err.message}`;
+                statusEl.style.color = 'red';
+            }
+        }
+
+        /**
+         * 执行书写动画
+         */
+        function playAll() {
+            const target = document.getElementById('render-target');
+            target.innerHTML = '';
+            
+            if (handwrittenDb.length === 0) return;
+
+            handwrittenDb.forEach((item, index) => {
+                const box = document.createElement('div');
+                box.className = 'char-box';
+                
+                const maskId = `mask-${index}`;
+                
+                // 渲染带有 Mask 的 SVG
+                box.innerHTML = `
+                    <svg viewBox="0 200 1000 1000" width="200" height="200">
+                        <defs>
+                            <mask id="${maskId}">
+                                <path class="animating-stroke" 
+                                      d="M 100 300 L 900 300 L 900 800 L 100 800 L 100 400 L 800 400 L 800 700 L 200 700" 
+                                      style="animation: drawStroke 2s forwards ${index * 0.8}s;" />
+                            </mask>
+                        </defs>
+                        <path class="handwritten-path" d="${item.path}" mask="url(#${maskId})" />
+                    </svg>
+                `;
+                target.appendChild(box);
+            });
+        }
+
+        // 启动加载
+        window.onload = loadData;
+    </script>
+</body>
+</html>

@@ -25,6 +25,13 @@
             "request": "launch",
             "program": "./samples/handwrite_simulate_gpu_new.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "ttf_to_svg_short",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./samples/ttf_to_svg_short.py",
+            "console": "integratedTerminal"
         }
     ]
 }
