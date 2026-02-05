@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>黑板粉笔书写演示</title>
+    <style>
+        /* 模拟黑板背景 */
+        body { 
+            background: #1a2a21; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding-top: 50px;
+            margin: 0;
+        }
+        .title { 
+            font-size: 28px; 
+            color: rgba(255,255,255,0.7); 
+            margin-bottom: 30px; 
+            font-family: "PingFang SC", sans-serif;
+            letter-spacing: 2px;
+        }
+        #canvas-container { 
+            display: flex; 
+            gap: 20px; 
+            padding: 40px; 
+            background: #1e3529; /* 深色黑板绿 */
+            border: 12px solid #3d2b1f; /* 木质边框 */
+            border-radius: 4px;
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.5), 0 20px 50px rgba(0,0,0,0.5);
+        }
+        canvas { filter: contrast(1.2); }
+    </style>
+</head>
+<body>
+
+    <div class="title">正在书写：科技改变生活</div>
+    <div id="canvas-container"></div>
+
+    <script>
+        const targetSentence = ["科", "技", "改", "变", "生", "活"];
+
+        async function startWriting() {
+            // 加载 GPU 增噪后的 Medians 数据
+            const response = await fetch('./graphicsZhHans_median.txt');
+            const text = await response.text();
+            
+            const db = new Map();
+            text.trim().split('\n').forEach(line => {
+                const data = JSON.parse(line);
+                db.set(data.character, data);
+            });
+
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = ''; 
+
+            for (const char of targetSentence) {
+                const charData = db.get(char);
+                if (!charData) continue;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 180;
+                canvas.height = 180;
+                container.appendChild(canvas);
+                const ctx = canvas.getContext('2d');
+
+                // --- 坐标系修正 ---
+                ctx.scale(180 / 1024, 180 / 1024);
+                ctx.scale(1, -1);
+                ctx.translate(0, -1024);
+
+                // 逐笔书写
+                for (const stroke of charData.medians) {
+                    await animateChalkStroke(ctx, stroke);
+                    await new Promise(r => setTimeout(r, 150));
+                }
+            }
+        }
+
+        /**
+         * 模拟粉笔质感的渲染逻辑
+         */
+        async function animateChalkStroke(ctx, stroke) {
+            return new Promise(resolve => {
+                let i = 0;
+                function draw() {
+                    if (i >= stroke.length - 1) {
+                        resolve();
+                        return;
+                    }
+
+                    const [x1, y1] = stroke[i];
+                    const [x2, y2] = stroke[i + 1];
+                    
+                    const t = i / stroke.length;
+                    // 粉笔压力模拟：起笔较方，行笔略有粗细变化
+                    const pressure = 1.0 + Math.random() * 0.3;
+                    
+                    ctx.save();
+                    
+                    // --- 粉笔核心质感设置 ---
+                    ctx.beginPath();
+                    ctx.lineWidth = 22 * pressure; // 加粗线条
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    
+                    // 白色粉笔颜色，带一点随机透明度模拟颗粒
+                    // ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + Math.random() * 0.3})`;
+                    ctx.strokeStyle = `rgba(255, 255, 255, 1)`;
+                    
+                    // 模拟粉笔灰散开的边缘模糊感
+                    ctx.shadowColor = 'rgba(255,255,255,0.4)';
+                    ctx.shadowBlur = 4;
+
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+
+                    // 叠加一层极细的随机断点，增加枯笔颗粒感
+                    if (Math.random() > 0.5) {
+                        ctx.beginPath();
+                        ctx.lineWidth = 2;
+                        ctx.strokeStyle = 'rgba(255,255,255,1)';
+                        ctx.arc(x2 + (Math.random()-0.5)*10, y2 + (Math.random()-0.5)*10, Math.random()*2, 0, Math.PI*2);
+                        ctx.stroke();
+                    }
+                    
+                    ctx.restore();
+
+                    i++;
+                    // 控制书写速度，粉笔书写通常比钢笔略慢且有力
+                    setTimeout(() => requestAnimationFrame(draw), 5);
+                }
+                draw();
+            });
+        }
+
+        window.onload = startWriting;
+    </script>
+</body>
+</html>
