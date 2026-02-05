@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>极致手写感 - Canvas 动态书写演示</title>
+    <style>
+        body { background: #e0e0e0; font-family: "PingFang SC", sans-serif; display: flex; flex-direction: column; align-items: center; padding: 40px; }
+        #canvas-container { display: flex; flex-wrap: wrap; gap: 20px; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 10px solid #d4c4a8; }
+        canvas { background: #fafafa; border: 1px solid #eee; }
+        .controls { margin-bottom: 20px; }
+        button { padding: 12px 24px; font-size: 16px; background: #34495e; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>极致手写感：动态压力 & 骨架增噪</h1>
+    <div class="controls">
+        <button onclick="startWriting()">开始书写</button>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script>
+        let charDataList = [];
+
+        async function loadData() {
+            const response = await fetch('./graphics_medians_handwritten.txt');
+            const text = await response.text();
+            charDataList = text.trim().split('\n').map(line => JSON.parse(line));
+            console.log("数据加载成功");
+        }
+
+        /**
+         * 模拟毛笔笔触的 Canvas 渲染函数
+         */
+        async function animateStroke(ctx, stroke) {
+            return new Promise(resolve => {
+                let i = 0;
+                function drawSegment() {
+                    if (i >= stroke.length - 1) {
+                        resolve();
+                        return;
+                    }
+
+                    const [x1, y1] = stroke[i];
+                    const [x2, y2] = stroke[i + 1];
+                    
+                    // --- 核心动态压力算法 ---
+                    const t = i / stroke.length;
+                    // 起笔重，中间轻，收笔顿
+                    const pressure = 1.2 - Math.sin(t * Math.PI) * 0.5;
+                    const baseWidth = 5; 
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    
+                    ctx.lineWidth = baseWidth * pressure * (0.8 + Math.random() * 0.4);
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.strokeStyle = 'rgba(44, 62, 80, 0.9)';
+                    ctx.stroke();
+
+                    i++;
+                    requestAnimationFrame(drawSegment);
+                }
+                drawSegment();
+            });
+        }
+
+        async function startWriting() {
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = '';
+
+            for (const charData of charDataList) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 250;
+                canvas.height = 250;
+                container.appendChild(canvas);
+                const ctx = canvas.getContext('2d');
+
+                // 适配 Make Me a Hanzi 坐标系 (1024x1024 缩放到 250x250)
+                ctx.scale(250 / 1024, 250 / 1024);
+                // 注意：Medians 的 Y 轴通常已经是符合浏览器方向的，或者需要翻转 
+                // 原始 medians 坐标通常是 0 在顶部，向下增加
+
+                for (const stroke of charData.medians) {
+                    await animateStroke(ctx, stroke);
+                    // 笔画间隔
+                    await new Promise(r => setTimeout(r, 100));
+                }
+            }
+        }
+
+        window.onload = loadData;
+    </script>
+</body>
+</html>
