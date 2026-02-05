@@ -83,4 +83,6 @@ def main_process_medians(input_path, output_path, batch_size=800):
 
 if __name__ == '__main__':
     # 替换为你的路径
-    main_process_medians('graphics.txt', 'graphics_medians_handwritten.txt')
+    input_file = 'F:\\animCJK\\graphicsZhHans.txt'
+    output_file = 'F:\\animCJK\\graphicsZhHans_handwritten.txt'
+    main_process_medians(input_file, output_file)

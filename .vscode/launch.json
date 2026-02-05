@@ -32,6 +32,13 @@
             "request": "launch",
             "program": "./samples/ttf_to_svg_short.py",
             "console": "integratedTerminal"
+        },
+        {
+            "name": "handwrite_simulate_gpu_median",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "./samples/handwrite_simulate_gpu_median.py",
+            "console": "integratedTerminal"
         }
     ]
 }
